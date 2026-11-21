@@ -1,23 +1,14 @@
-# Frontdesk — Completion Note
+# Frontdesk completion note
 
-**Assessment:** iNav Technologies — Full Stack Developer (November 2026)
+Frontdesk is deployed on Render. The agent workspace, ticket API, PostgreSQL persistence, business-hours SLA, and audit history are implemented. The assessment checks exercised atomic ticket claiming, customer-side isolation of private notes, immutable audit history, and the wait, auto-close, and reopen workflows.
 
-## Implemented
+## Scope and limitations
 
-- React/TypeScript responsive agent dashboard with login, filtering, ticket creation/detail, claim, message composer, SLA and activity panels.
-- Express/PostgreSQL ticket endpoints, secure customer token, agent login, atomic ownership claim and append-only auditing.
-- Working-hours SLA calculation including IST schedule, holidays, pause/resume, auto-closure and reopen policy.
-- README with local setup, requirements interpretation, commands, API routes and deployment Blueprint.
-- Automated unit tests for business-time calculations.
+- Customer reply and reopen are available through the API. A standalone customer UI and email or SMS delivery were outside the assessment scope.
+- Holidays are configured manually. Auto-close is reconciled on relevant requests and by the web process while it is running, so a sleeping instance handles pending closures when it wakes.
+- The seeded agent accounts support the assessment workflow. Account administration and password rotation are not part of the application.
+- The database applies an idempotent startup schema. A versioned migration runner was outside the initial scope.
 
-## Outstanding / time-boxed limitations
+The implementation prioritized the agent workflow and the three reported failure scenarios within the assessment time box.
 
-- Email notification/delivery integration was not included; agent-to-customer replies are stored and readable through the public-ticket API.
-- A standalone browser-based customer portal is not included. The agent UI and public customer APIs are implemented.
-- Holidays are manual configuration, not integrated with a festival calendar service.
-- Expiration processing uses a timer plus lazy reconciliation, not an always-on dedicated worker; on a sleeping free-tier service, closure is reflected on the next request.
-- Database integration tests, complete production build, live deployment verification and new remote GitHub repository publication still require execution/verification in an environment with network access, a running PostgreSQL database and the account owner's authorization.
-
-**Reason for limitations:** The assessment favors correct business-rule interpretation, a reliable core workflow, and transparent prioritization within an approximately eight-hour development window.
-
-**Before submitting:** Replace the outstanding deployment wording with an accurate status after verifying the live URL, GitHub repo, and working database; do not claim untested features as verified.
+[Live application](https://frontdesk-app-dzdl.onrender.com) · [Assessment verification run](https://github.com/abinavdev/Frontdesk/actions/runs/44953121564)
