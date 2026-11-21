@@ -276,6 +276,33 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({ error: err.status ? err.message : 'Unexpected server error' });
 });
 
+await pool.query(`
+  DO $cleanup$
+  BEGIN
+    IF to_regnamespace('frontdesk_demo') IS NULL THEN
+      RETURN;
+    END IF;
+
+    LOCK TABLE frontdesk_demo.agents, frontdesk_demo.tickets,
+      frontdesk_demo.messages, frontdesk_demo.audit_events IN ACCESS EXCLUSIVE MODE;
+    IF EXISTS (SELECT FROM frontdesk_demo.tickets)
+      OR EXISTS (SELECT FROM frontdesk_demo.messages)
+      OR EXISTS (SELECT FROM frontdesk_demo.audit_events)
+      OR EXISTS (
+        SELECT FROM frontdesk_demo.agents
+        WHERE email <> 'demo@arvo.example' OR display_name <> 'Demo Agent'
+      )
+    THEN
+      RAISE EXCEPTION 'Demo schema contains data outside the generated demo account';
+    END IF;
+
+    DROP TABLE frontdesk_demo.audit_events, frontdesk_demo.messages,
+      frontdesk_demo.tickets, frontdesk_demo.agents;
+    DROP FUNCTION frontdesk_demo.prohibit_audit_mutation();
+    DROP SCHEMA frontdesk_demo;
+  END;
+  $cleanup$;
+`);
 await initializeDatabase();
 const server = app.listen(Number(process.env.PORT || 3001), '0.0.0.0', () => console.info(`Frontdesk listening on ${process.env.PORT || 3001}`));
 const sweepTimer = setInterval(() => sweepStaleTickets().catch(err => console.error('Auto-close:', err.message)), 15 * 60 * 1000);
