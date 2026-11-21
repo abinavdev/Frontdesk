@@ -2,7 +2,7 @@
 
 Frontdesk is a support workspace for managing customer tickets, tracking service commitments, and recording who did what. It was built for the iNav Technologies full-stack assessment, where nine agents needed to move from a shared spreadsheet and chat to an auditable queue.
 
-[Live application](https://frontdesk-app-dzdl.onrender.com) · [Completion note](COMPLETION_NOTE.md)
+[Live application](https://frontdesk-app-dzdl.onrender.com) · [CI runs](https://github.com/abinavdev/Frontdesk/actions/workflows/ci.yml) · [Completion note](COMPLETION_NOTE.md)
 
 ## What it does
 
@@ -12,27 +12,79 @@ Frontdesk is a support workspace for managing customer tickets, tracking service
 - Calculate response and resolution deadlines using business hours, pause the clock while awaiting a customer, and reconcile overdue customer waits.
 - Give customers token-based API access to their ticket, public replies, and eligible reopen actions.
 
-## Architecture
+## System architecture
 
-The React UI calls the Express API under `/api`. Express serves the compiled frontend in production and uses PostgreSQL for agent accounts, tickets, messages, and audit events. Vite proxies API requests to Express during local development. The SLA calendar and session helpers run on the server.
+Frontdesk runs as one Express web service backed by PostgreSQL. The React bundle and API share the same origin in production. During local development, Vite serves the React app and proxies `/api` to Express.
 
-| Layer | Technology |
+```mermaid
+flowchart TB
+    Agent["Agent browser"] --> UI["React workspace"]
+    UI -->|JSON over HTTPS| API["Express API on Render"]
+    Customer["Customer API client"] -->|Ticket-scoped bearer token| API
+    API --> Rules["Ticket workflow and business-hours SLA"]
+    Rules --> DB[("PostgreSQL")]
+```
+
+| Boundary | Responsibilities |
 | --- | --- |
-| UI | React 19, TypeScript, Vite |
-| API | Node.js 20+, Express 4 |
-| Data | PostgreSQL 14+, node-postgres |
-| Quality checks | TypeScript, Node test runner, GitHub Actions |
-| Hosting | Render web service and managed PostgreSQL |
+| React workspace | Agent sign-in, queue filters and search, ticket details, SLA display, messages, and activity history |
+| Express API | Input validation, authentication, authorization, ticket operations, and static frontend delivery |
+| Business rules | IST calendar, priority-based deadlines, pause and resume, automatic closure, and reopen eligibility |
+| PostgreSQL | Ticket persistence, atomic ownership, message visibility constraints, and append-only audit events |
+
+<details>
+<summary>Repository map and stack</summary>
 
 | Path | Purpose |
 | --- | --- |
-| `client/src/` | Agent sign-in, dashboard, ticket detail, and styles |
-| `server/src/index.js` | HTTP routes, authorization, and ticket workflows |
-| `server/src/db.js`, `server/src/schema.sql` | Database access, startup schema, and initial agents |
-| `server/src/sla.js`, `server/src/security.js` | Business calendar and authentication helpers |
-| `server/src/seed-demo.js` | Optional sample tickets for local development |
-| `server/test/` | SLA, authentication, and database-backed integration tests |
-| `render.yaml`, `.github/workflows/ci.yml` | Deployment and continuous integration |
+| [`client/src/`](client/src/) | React 19, TypeScript, and Vite |
+| [`server/src/index.js`](server/src/index.js) | Node.js 20+ and Express 4 routes and ticket workflows |
+| [`server/src/db.js`](server/src/db.js), [`schema.sql`](server/src/schema.sql) | PostgreSQL 14+, node-postgres, and startup schema |
+| [`server/src/sla.js`](server/src/sla.js), [`security.js`](server/src/security.js) | Business calendar, password hashing, and signed sessions |
+| [`server/src/seed-demo.js`](server/src/seed-demo.js) | Optional local sample data |
+| [`server/test/`](server/test/) | Node tests for SLA, security, and HTTP/PostgreSQL integration |
+| [`render.yaml`](render.yaml), [`ci.yml`](.github/workflows/ci.yml) | Render Blueprint and GitHub Actions workflow |
+
+</details>
+
+## System design
+
+### Data model
+
+```mermaid
+erDiagram
+    AGENTS o|--o{ TICKETS : owns
+    TICKETS ||--o{ MESSAGES : contains
+    TICKETS ||--o{ AUDIT_EVENTS : records
+    AGENTS o|--o{ MESSAGES : authors
+    AGENTS o|--o{ AUDIT_EVENTS : performs
+```
+
+An unassigned ticket has no agent owner. Customer participation uses a ticket-scoped token, with only its hash stored in the ticket row. Messages and audit records can attribute customer activity without a separate customer account table. Messages carry public or internal visibility. Audit events record the action, actor, timestamp, and structured details. A database trigger rejects updates and deletes on audit events.
+
+### Ownership and write consistency
+
+A claim uses a conditional PostgreSQL update that succeeds only while the ticket is unassigned and claimable. If two agents claim the same ticket, one succeeds and the other gets HTTP `409`. State-changing operations check ownership on the server. The ticket change and its audit event commit in the same transaction.
+
+### Authentication and customer visibility
+
+Agent passwords are hashed with scrypt. Agents receive a signed session token valid for 12 hours. Customer routes use a different, ticket-specific bearer token. The customer view returns a defined set of ticket fields and public messages only. Internal notes and audit events remain in the agent workspace.
+
+### Ticket lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> Open
+    Open --> InProgress : Agent claims ticket
+    InProgress --> Waiting : Agent waits for customer
+    Waiting --> InProgress : Customer reply or agent resumes
+    InProgress --> Resolved : Agent resolves ticket
+    Waiting --> Resolved : Agent resolves ticket
+    Resolved --> InProgress : Reopen within five working days
+    Waiting --> Closed : Five working days of silence
+```
+
+Waiting freezes the SLA clock. Resuming shifts the deadlines by working time spent waiting. A customer can reopen a resolved ticket within five working days. Automatic closure runs during relevant requests and every 15 minutes while the web service is awake.
 
 ## Run locally
 
@@ -60,15 +112,13 @@ On startup, the server applies the schema in `server/src/schema.sql` and inserts
 
 For a fresh local setup, sign in as `asha@arvo.example` or another seeded agent using the password you chose. Updating the seed variable after initialization does not rotate passwords on existing accounts. For sample tickets, run `npm run seed:demo` against your local service after it starts. Share hosted reviewer credentials privately.
 
-## Roles and ticket workflow
+## Roles and service commitments
 
 | Access | Permissions |
 | --- | --- |
 | Agent | Sign in, view the shared queue and activity, create tickets, and claim available tickets. The assignee can change status and priority, send replies, add internal notes, and reopen eligible tickets. |
 | Customer | Use the ticket-specific bearer token returned at creation to read that ticket and its public messages, reply while it is active, or reopen it within the allowed window. |
 | Administration | The application has no separate admin account or admin UI. Deployment and database administration happen outside Frontdesk. |
-
-Tickets start **Open**. Claiming moves a ticket to **In progress**. An agent can move it to **Waiting on customer**, which pauses the SLA. A customer reply resumes work. After five working days of silence, the service closes the ticket. A **Resolved** ticket can be reopened within five working days.
 
 Business hours are Monday through Friday, 09:30–18:30 IST, excluding configured holidays. Priority changes recalculate the active SLA budget and are audited. A recorded first response keeps its original deadline.
 
@@ -95,10 +145,6 @@ Create a disposable database such as `frontdesk_test` before setting `TEST_DATAB
 ## Deployment
 
 The existing [Render service](https://frontdesk-app-dzdl.onrender.com) builds from `main` using `render.yaml`. Render provisions the database connection and session secret. Set the seed password privately in Render when provisioning a fresh environment. The service starts with `npm start` and uses [`/api/health`](https://frontdesk-app-dzdl.onrender.com/api/health) for readiness. Pushes to `main` trigger automatic deployment.
-
-## Screenshots
-
-The [live sign-in page](https://frontdesk-app-dzdl.onrender.com) shows the actual interface. Sign in with reviewer credentials shared privately to view the queue, SLA details, and activity log.
 
 ## Future improvements
 
