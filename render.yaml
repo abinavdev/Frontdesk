@@ -1,0 +1,28 @@
+# Render Blueprint — creates one web service and a free PostgreSQL database.
+# The free web service can sleep while idle; it wakes on an incoming request.
+services:
+  - type: web
+    name: frontdesk-app
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: frontdesk-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: SEED_AGENT_PASSWORD
+        sync: false
+      - key: HOLIDAYS
+        value: ''
+databases:
+  - name: frontdesk-db
+    plan: free
+    databaseName: frontdesk
+    user: frontdesk
