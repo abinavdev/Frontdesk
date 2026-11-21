@@ -142,6 +142,12 @@ Customer operations are available through the API. Send `Authorization: Bearer <
 
 Create a disposable database such as `frontdesk_test` before setting `TEST_DATABASE_URL`. The integration test will initialize it and create synthetic tickets. CI provides its own PostgreSQL service and runs all checks without production credentials.
 
+## Reviewer sign-in
+
+Open the [Frontdesk agent workspace](https://frontdesk-app-dzdl.onrender.com) and sign in with `asha@arvo.example`. The repository owner shares the reviewer password privately.
+
+For a local installation, use the `SEED_AGENT_PASSWORD` you chose when initializing the database.
+
 ## Deployment
 
 The existing [Render service](https://frontdesk-app-dzdl.onrender.com) builds from `main` using `render.yaml`. Render provisions the database connection and session secret. Set the seed password privately in Render when provisioning a fresh environment. The service starts with `npm start` and uses [`/api/health`](https://frontdesk-app-dzdl.onrender.com/api/health) for readiness. Pushes to `main` trigger automatic deployment.
