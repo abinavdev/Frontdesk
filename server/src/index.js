@@ -3,7 +3,7 @@ import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pool, withTransaction, audit, initializeDatabase } from './db.js';
-import { customerToken, hashToken, hashPassword, verifyPassword, signAgentSession, verifyAgentSession } from './security.js';
+import { customerToken, hashToken, verifyPassword, signAgentSession, verifyAgentSession } from './security.js';
 import { deadlines, addWorkingMinutes, shiftDeadlines, isOverdue, withinReopenWindow } from './sla.js';
 
 const production = process.env.NODE_ENV === 'production';
@@ -11,9 +11,6 @@ if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
 if (production && (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32)) throw new Error('A SESSION_SECRET of at least 32 characters is required in production');
 if (production && (!process.env.SEED_AGENT_PASSWORD || process.env.SEED_AGENT_PASSWORD.length < 12)) throw new Error('A SEED_AGENT_PASSWORD of at least 12 characters is required in production');
 const secret = process.env.SESSION_SECRET || 'dev-only-session-secret-not-for-production';
-const ashaPasswordHash = process.env.ASHA_AGENT_PASSWORD
-  ? hashPassword(process.env.ASHA_AGENT_PASSWORD)
-  : null;
 const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '20kb' }));
@@ -103,10 +100,7 @@ app.post('/api/auth/login', wrap(async (req, res) => {
   const password = String(req.body?.password || '');
   const result = await pool.query('SELECT id,email,display_name,password_hash FROM agents WHERE email=$1', [email]);
   const user = result.rows[0];
-  const passwordHash = email === 'asha@arvo.example' && ashaPasswordHash
-    ? ashaPasswordHash
-    : user?.password_hash;
-  if (!user || !verifyPassword(password, passwordHash)) throw invalid('Invalid email or password', 401);
+  if (!user || !verifyPassword(password, user.password_hash)) throw invalid('Invalid email or password', 401);
   const agent = { id: user.id, email: user.email, display_name: user.display_name };
   res.json({ agent, token: signAgentSession(agent, secret) });
 }));

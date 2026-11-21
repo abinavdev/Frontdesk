@@ -19,8 +19,6 @@ services:
         generateValue: true
       - key: SEED_AGENT_PASSWORD
         sync: false
-      - key: ASHA_AGENT_PASSWORD
-        sync: false
       - key: HOLIDAYS
         value: ''
 databases:
