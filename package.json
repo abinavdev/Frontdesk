@@ -1,0 +1,30 @@
+{
+  "name": "frontdesk-hiring-assessment",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "engines": {"node": ">=20"},
+  "scripts": {
+    "dev:server": "node --watch server/src/index.js",
+    "dev:client": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "start": "node server/src/index.js",
+    "test": "node --test server/test/*.test.js",
+    "check": "npm test && npm run build",
+    "seed:demo": "node server/src/seed-demo.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "pg": "^8.13.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.8.3",
+    "vite": "^6.1.0"
+  }
+}
