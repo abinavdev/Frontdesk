@@ -110,7 +110,7 @@ Waiting freezes the SLA clock. Resuming shifts the deadlines by working time spe
 
 On startup, the server applies the schema in `server/src/schema.sql` and inserts any missing seed agents. There is no separate migration runner. Review future schema changes as migrations before applying them to an existing database.
 
-For a fresh local setup, sign in as `asha@arvo.example` or another seeded agent using the password you chose. Updating the seed variable after initialization does not rotate passwords on existing accounts. For sample tickets, run `npm run seed:demo` against your local service after it starts. Share hosted reviewer credentials privately.
+For a fresh local setup, sign in as `asha@arvo.example` or another seeded agent using the password you chose. Updating the seed variable after initialization does not rotate passwords on existing accounts. For sample tickets, run `npm run seed:demo` against your local service after it starts. Use the [reviewer sign-in](#reviewer-sign-in) section for the hosted evaluation workspace.
 
 ## Roles and service commitments
 
@@ -144,7 +144,14 @@ Create a disposable database such as `frontdesk_test` before setting `TEST_DATAB
 
 ## Reviewer sign-in
 
-Open the [Frontdesk agent workspace](https://frontdesk-app-dzdl.onrender.com) and sign in with `asha@arvo.example`. The repository owner shares the reviewer password privately.
+Open the [Frontdesk agent workspace](https://frontdesk-app-dzdl.onrender.com) and sign in with the evaluation account.
+
+| Field | Value |
+| --- | --- |
+| Email | `asha@arvo.example` |
+| Password | `Agent@pass123` |
+
+The hosted workspace contains sample tickets for evaluation.
 
 For a local installation, use the `SEED_AGENT_PASSWORD` you chose when initializing the database.
 
