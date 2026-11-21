@@ -19,9 +19,6 @@ services:
         generateValue: true
       - key: SEED_AGENT_PASSWORD
         sync: false
-      # This password is shown on the login page and only opens the demo workspace.
-      - key: PUBLIC_DEMO_PASSWORD
-        value: Frontdesk123
       - key: HOLIDAYS
         value: ''
 databases:

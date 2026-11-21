@@ -68,45 +68,16 @@ function Button({ children, onClick, type='button', variant='primary', disabled=
 }) { return <button className={`btn btn-${variant} ${className}`} onClick={onClick} type={type} disabled={disabled}>{children}</button>; }
 
 function Login({ onLogin }: { onLogin: (token: string, agent: Agent) => void }) {
-  const [demo, setDemo] = useState<{ email: string; password: string } | null>(null);
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState('asha@arvo.example');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    const controller = new AbortController();
-    api<{ demo: { email: string; password: string } | null }>('/auth/demo', null, { signal: controller.signal })
-      .then(data => setDemo(data.demo))
-      .catch(() => {});
-    return () => controller.abort();
-  }, []);
-
-  async function signIn(loginEmail: string, loginPassword: string) {
-    setBusy(true);
-    setError('');
-    try {
-      const data = await api<{ agent: Agent; token: string }>('/auth/login', null, {
-        method: 'POST',
-        body: JSON.stringify({ email: loginEmail, password: loginPassword })
-      });
-      onLogin(data.token, data.agent);
-    } catch (error) {
-      setError((error as Error).message);
-    } finally {
-      setBusy(false);
-    }
+  async function handleLogin(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true); setError('');
+    try { const data = await api<{ agent: Agent; token: string }>('/auth/login', undefined, { method:'POST',body:JSON.stringify({email,password}) }); onLogin(data.token, data.agent); }
+    catch(e) { setError((e as Error).message); } finally { setBusy(false); }
   }
-
-  function handleLogin(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void signIn(email, password);
-  }
-  return <div className="login-page"><div className="login-top"><Mark /><span>THE AGENT WORKSPACE</span></div><div className="login-wrap"><div className="login-promo"><span className="eyebrow">THE WORK GETS DONE HERE</span><h1>A calmer way to<br/><em>care for customers.</em></h1><p>One home for every conversation, deadline and handoff. Built to keep your whole support team in sync.</p><div className="login-metrics"><div><strong>09</strong><span>Support agents</span></div><div><strong>40+</strong><span>Daily conversations</span></div><div><strong>100%</strong><span>Activity visibility</span></div></div><div className="rings"><i/><i/><i/></div></div><div className="login-card"><div className="login-icon"><Icon name="lock" size={24}/></div><h2>Welcome back</h2><p>Sign in to your team workspace.</p><form onSubmit={handleLogin}><label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@arvo.example" required /></label><label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Enter your password" required /></label>{error&&<div className="form-error">{error}</div>}<Button type="submit" disabled={busy}>{busy?'Signing in…':'Sign in to Frontdesk'} <Icon name="arrow" size={17}/></Button></form>{demo && <div className="login-help">
-    <strong>Try the demo workspace</strong><br />
-    Email <code>{demo.email}</code><br />
-    Password <code>{demo.password}</code><br />
-    <Button variant="secondary" disabled={busy} onClick={() => void signIn(demo.email, demo.password)}>Sign in as demo</Button>
-  </div>}</div></div><div className="login-footer">© 2026 Frontdesk by Arvo Systems <span>Built for the people behind support.</span></div></div>;
+  return <div className="login-page"><div className="login-top"><Mark /><span>THE AGENT WORKSPACE</span></div><div className="login-wrap"><div className="login-promo"><span className="eyebrow">THE WORK GETS DONE HERE</span><h1>A calmer way to<br/><em>care for customers.</em></h1><p>One home for every conversation, deadline and handoff. Built to keep your whole support team in sync.</p><div className="login-metrics"><div><strong>09</strong><span>Support agents</span></div><div><strong>40+</strong><span>Daily conversations</span></div><div><strong>100%</strong><span>Activity visibility</span></div></div><div className="rings"><i/><i/><i/></div></div><div className="login-card"><div className="login-icon"><Icon name="lock" size={24}/></div><h2>Welcome back</h2><p>Sign in to your team workspace.</p><form onSubmit={handleLogin}><label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@arvo.example" required /></label><label>Password<input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Enter your password" required /></label>{error&&<div className="form-error">{error}</div>}<Button type="submit" disabled={busy}>{busy?'Signing in…':'Sign in to Frontdesk'} <Icon name="arrow" size={17}/></Button></form><div className="login-help">Demo account: <strong>asha@arvo.example</strong><br/>Use the password configured as <code>SEED_AGENT_PASSWORD</code>.</div></div></div><div className="login-footer">© 2026 Frontdesk by Arvo Systems <span>Built for the people behind support.</span></div></div>;
 }
 function TicketCreation({ onClose, onSubmit, error, busy }: { onClose:()=>void; onSubmit:(input:NewTicket)=>void; error:string; busy:boolean }) {
   const [form,setForm]=useState<NewTicket>(emptyTicket);
