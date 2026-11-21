@@ -73,6 +73,7 @@ async function resumeFromWait(client, ticket, now) {
   const shifted = shiftDeadlines(ticket, ticket.waiting_started_at, now);
   await client.query(`UPDATE tickets SET status='in_progress', waiting_started_at=NULL, auto_close_at=NULL,
       response_due_at=$2, resolution_due_at=$3, updated_at=$4 WHERE id=$1`, [ticket.id, shifted.responseDue, shifted.resolutionDue, now]);
+  return shifted;
 }
 async function reopenTicket(client, ticket, now, actor) {
   if (ticket.status !== 'resolved') throw invalid('Only resolved tickets may be reopened', 409);
@@ -208,7 +209,7 @@ app.post('/api/tickets/:id/priority', wrap(async (req, res) => {
     const due = deadlines(now, priority);
     const result = await client.query(`UPDATE tickets SET priority=$2, response_due_at=$3, resolution_due_at=$4,
         waiting_started_at=CASE WHEN status='waiting_customer' THEN $5 ELSE waiting_started_at END,
-        updated_at=$5 WHERE id=$1 RETURNING *`, [t.id, priority, due.responseDue, due.resolutionDue, now]);
+        updated_at=$5 WHERE id=$1 RETURNING *`, [t.id, priority, t.first_response_at ? t.response_due_at : due.responseDue, due.resolutionDue, now]);
     await audit(client, t.id, req.agent.id, null, 'priority_changed', { from: t.priority, to: priority, policy: 'reset-SLA-from-change' });
     return result.rows[0];
   });
@@ -224,11 +225,16 @@ app.post('/api/tickets/:id/messages', wrap(async (req, res) => {
     if (['closed','resolved'].includes(t.status)) throw invalid('Cannot reply to a resolved or closed ticket', 409);
     const now = new Date();
     await client.query(`INSERT INTO messages (ticket_id,author_agent_id,visibility,body) VALUES ($1,$2,$3,$4)`, [t.id, req.agent.id, visibility, body]);
-    await client.query(`UPDATE tickets SET first_response_at=CASE WHEN $2='public' AND first_response_at IS NULL THEN $3 ELSE first_response_at END,
-      updated_at=$3 WHERE id=$1`, [t.id, visibility, now]);
+    const firstPublicReply = visibility === 'public' && !t.first_response_at;
+    const responseDue = firstPublicReply && t.status === 'waiting_customer'
+      && new Date(t.waiting_started_at) <= new Date(t.response_due_at)
+      ? shiftDeadlines(t, t.waiting_started_at, now).responseDue
+      : t.response_due_at;
+    await client.query(`UPDATE tickets SET first_response_at=CASE WHEN $2 THEN $3 ELSE first_response_at END,
+      response_due_at=$4, updated_at=$3 WHERE id=$1`, [t.id, firstPublicReply, now, responseDue]);
     // Never include message contents in the audit payload; an export of events cannot leak internal notes.
     await audit(client, t.id, req.agent.id, null, visibility === 'internal' ? 'internal_note_added' : 'public_reply_sent', { visibility,
-      first_response_sla_breached: visibility === 'public' && !t.first_response_at && now > new Date(t.response_due_at) });
+      first_response_sla_breached: firstPublicReply && now > new Date(responseDue) });
   });
   res.status(201).json({ ok: true });
 }));
@@ -241,7 +247,9 @@ app.post('/api/tickets/:id/status', wrap(async (req, res) => {
     if (['closed','resolved'].includes(t.status)) throw invalid('Use the reopen action on resolved tickets', 409);
     if (t.status === requested) return t;
     const now = new Date();
-    if (t.status === 'waiting_customer') await resumeFromWait(client, t, now);
+    const resolutionDue = t.status === 'waiting_customer'
+      ? (await resumeFromWait(client, t, now)).resolutionDue
+      : t.resolution_due_at;
     if (requested === 'waiting_customer') {
       if (t.status === 'waiting_customer') return t;
       await client.query(`UPDATE tickets SET status='waiting_customer', waiting_started_at=$2,
@@ -253,7 +261,7 @@ app.post('/api/tickets/:id/status', wrap(async (req, res) => {
       await client.query(`UPDATE tickets SET status='in_progress',updated_at=$2 WHERE id=$1`, [t.id, now]);
     }
     await audit(client, t.id, req.agent.id, null, 'status_changed', { from: t.status, to: requested,
-      resolution_sla_breached: requested === 'resolved' && now > new Date(t.resolution_due_at) });
+      resolution_sla_breached: requested === 'resolved' && now > new Date(resolutionDue) });
     return (await selectTicket(client, t.id)).id;
   });
   res.json({ ok: true, ticket_id: ticket });
