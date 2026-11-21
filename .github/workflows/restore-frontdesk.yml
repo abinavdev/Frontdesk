@@ -1,0 +1,23 @@
+name: Restore Frontdesk source and history
+on:
+  push:
+    paths:
+      - 'frontdesk-history.bundle.gz.b64'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Import prepared Git history
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d frontdesk-history.bundle.gz.b64 | gzip -dc > /tmp/frontdesk-history.bundle
+          git bundle verify /tmp/frontdesk-history.bundle
+          git fetch /tmp/frontdesk-history.bundle refs/heads/main
+          git push origin FETCH_HEAD:refs/heads/main --force
